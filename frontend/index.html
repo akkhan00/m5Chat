@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5mChat - Ephemeral Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-clock"></i> 5mChat</h1>
+                <p class="subtitle">Messages disappear after 5 minutes</p>
+            </div>
+        </header>
+
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="login-card">
+                <h2>Join the Chat</h2>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" required maxlength="20" placeholder="Enter your username">
+                    </div>
+                    <div class="input-group">
+                        <label for="roomName">Room Name</label>
+                        <input type="text" id="roomName" required maxlength="30" placeholder="Enter room name">
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i> Join Chat
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chatScreen" class="screen">
+            <div class="chat-container">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="room-info">
+                        <h3 id="currentRoomName">Room: #general</h3>
+                        <span id="connectionStatus" class="status-indicator">
+                            <i class="fas fa-circle"></i> Connected
+                        </span>
+                    </div>
+                    <button id="leaveRoomBtn" class="btn btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Leave Room
+                    </button>
+                </div>
+
+                <!-- Messages Area -->
+                <div class="messages-container" id="messagesContainer">
+                    <div class="welcome-message">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Welcome to 5mChat! Messages in this room will automatically delete after 5 minutes.</p>
+                    </div>
+                </div>
+
+                <!-- Message Input -->
+                <div class="message-input-container">
+                    <form id="messageForm">
+                        <div class="input-group-horizontal">
+                            <input type="text" id="messageInput" placeholder="Type your message..." maxlength="500" required>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loadingScreen" class="screen">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Connecting to 5mChat...</p>
+            </div>
+        </div>
+
+        <!-- Error Screen -->
+        <div id="errorScreen" class="screen">
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Connection Error</h3>
+                <p id="errorText">Unable to connect to chat server</p>
+                <button id="retryBtn" class="btn btn-primary">
+                    <i class="fas fa-redo"></i> Retry Connection
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
