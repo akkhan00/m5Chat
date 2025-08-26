@@ -3,11 +3,14 @@ const state = {
     socket: null,
     currentUser: null,
     currentRoom: null,
-    isConnected: false
+    isConnected: false,
+    mediaRecorder: null,
+    audioChunks: [],
+    isRecording: false
 };
 
 // Configuration - Update this URL when you deploy your backend
-const API_URL = 'http://localhost:8000';
+const API_URL = 'https://skillful-laughter-production.up.railway.app';
 
 // DOM elements
 const elements = {
@@ -26,6 +29,9 @@ const elements = {
     messageForm: document.getElementById('messageForm'),
     messageInput: document.getElementById('messageInput'),
     leaveRoomBtn: document.getElementById('leaveRoomBtn'),
+    
+    imageUpload: document.getElementById('imageUpload'),
+    uploadProgress: document.getElementById('uploadProgress'),
     
     errorText: document.getElementById('errorText'),
     retryBtn: document.getElementById('retryBtn')
@@ -80,21 +86,132 @@ function updateConnectionStatus(status, message) {
     }
 }
 
+// Image upload functions
+function showUploadProgress(show) {
+    elements.uploadProgress.style.display = show ? 'block' : 'none';
+    if (show) {
+        updateUploadProgress(0);
+    }
+}
+
+function updateUploadProgress(percentage) {
+    const progressFill = elements.uploadProgress.querySelector('.progress-fill');
+    const progressText = elements.uploadProgress.querySelector('.progress-text');
+    
+    progressFill.style.width = `${percentage}%`;
+    progressText.textContent = percentage === 100 ? 'Upload complete!' : `Uploading image... ${Math.round(percentage)}%`;
+}
+
+async function uploadImage(file) {
+    if (!state.currentUser || !state.currentRoom) {
+        alert('Please join a room first');
+        return;
+    }
+    
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB');
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+    }
+    
+    showUploadProgress(true);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('username', state.currentUser);
+    formData.append('room', state.currentRoom);
+    
+    try {
+        const response = await fetch(`${API_URL}/upload-image`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        updateUploadProgress(100);
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Upload failed');
+        }
+        
+        const result = await response.json();
+        console.log('Image uploaded successfully:', result);
+        
+        // Hide progress after a short delay
+        setTimeout(() => showUploadProgress(false), 1000);
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        alert('Failed to upload image: ' + error.message);
+        showUploadProgress(false);
+    }
+}
+
 // Message rendering functions
 function createMessageElement(message, isOwnMessage = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isOwnMessage ? 'own' : ''}`;
     messageDiv.setAttribute('data-message-id', message.id);
     
-    messageDiv.innerHTML = `
-        <div class="message-header">
-            <span class="message-username">${escapeHtml(message.username)}</span>
-            <span class="message-time">${formatTime(message.timestamp)}</span>
-        </div>
-        <div class="message-content">${escapeHtml(message.content)}</div>
-    `;
+    let contentHTML = '';
     
+    if (message.message_type === 'image' && message.image_url) {
+        contentHTML = `
+            <div class="message-header">
+                <span class="message-username">${escapeHtml(message.username)}</span>
+                <span class="message-time">${formatTime(message.timestamp)}</span>
+            </div>
+            <div class="message-content">
+                <div class="image-message-filename">${escapeHtml(message.content)}</div>
+                <img src="${API_URL}${message.image_url}" alt="Shared image" class="message-image" onclick="openImageModal('${API_URL}${message.image_url}')">
+            </div>
+        `;
+    } else if (message.message_type === 'voice' && message.voice_url) {
+        contentHTML = `
+            <div class="message-header">
+                <span class="message-username">${escapeHtml(message.username)}</span>
+                <span class="message-time">${formatTime(message.timestamp)}</span>
+            </div>
+            <div class="message-content">
+                <div class="voice-message">
+                    <button class="voice-play-btn" onclick="toggleVoicePlayback('${message.id}', '${API_URL}${message.voice_url}')">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <div class="voice-waveform">
+                        <div class="voice-progress" id="voice-progress-${message.id}"></div>
+                    </div>
+                    <span class="voice-duration" id="voice-duration-${message.id}">0:00</span>
+                    <audio id="voice-audio-${message.id}" preload="metadata">
+                        <source src="${API_URL}${message.voice_url}" type="audio/webm">
+                        <source src="${API_URL}${message.voice_url}" type="audio/wav">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+            </div>
+        `;
+    } else {
+        contentHTML = `
+            <div class="message-header">
+                <span class="message-username">${escapeHtml(message.username)}</span>
+                <span class="message-time">${formatTime(message.timestamp)}</span>
+            </div>
+            <div class="message-content">${escapeHtml(message.content)}</div>
+        `;
+    }
+    
+    messageDiv.innerHTML = contentHTML;
     return messageDiv;
+}
+
+function openImageModal(imageUrl) {
+    // Simple image modal - open in new tab for now
+    window.open(imageUrl, '_blank');
 }
 
 function createSystemMessage(text) {
@@ -339,6 +456,22 @@ document.addEventListener('DOMContentLoaded', () => {
         connectToServer();
     });
     
+    // Image upload handler
+    elements.imageUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            uploadImage(file);
+            // Clear the input so the same file can be selected again
+            e.target.value = '';
+        }
+    });
+    
+    // Voice recording handler
+    const voiceRecordBtn = document.getElementById('voiceRecordBtn');
+    if (voiceRecordBtn) {
+        voiceRecordBtn.addEventListener('click', toggleVoiceRecording);
+    }
+    
     // Auto-focus message input when chat screen is active
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -365,6 +498,149 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Voice recording functions
+async function toggleVoiceRecording() {
+    if (!state.currentUser || !state.currentRoom) {
+        alert('Please join a room first');
+        return;
+    }
+    
+    const voiceBtn = document.getElementById('voiceRecordBtn');
+    
+    if (!state.isRecording) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            state.mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+            
+            state.audioChunks = [];
+            
+            state.mediaRecorder.addEventListener('dataavailable', (event) => {
+                if (event.data.size > 0) {
+                    state.audioChunks.push(event.data);
+                }
+            });
+            
+            state.mediaRecorder.addEventListener('stop', () => {
+                const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
+                uploadVoice(audioBlob);
+                
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+            });
+            
+            state.mediaRecorder.start();
+            state.isRecording = true;
+            
+            voiceBtn.classList.add('recording');
+            voiceBtn.innerHTML = '<i class="fas fa-stop"></i>';
+            
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            alert('Could not access microphone. Please check your permissions.');
+        }
+    } else {
+        state.mediaRecorder.stop();
+        state.isRecording = false;
+        
+        voiceBtn.classList.remove('recording');
+        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+    }
+}
+
+async function uploadVoice(audioBlob) {
+    if (!state.currentUser || !state.currentRoom) {
+        alert('Please join a room first');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'voice-message.webm');
+    formData.append('username', state.currentUser);
+    formData.append('room', state.currentRoom);
+    
+    try {
+        const response = await fetch(`${API_URL}/upload-voice`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Upload failed');
+        }
+        
+        const result = await response.json();
+        console.log('Voice message uploaded successfully:', result);
+        
+    } catch (error) {
+        console.error('Voice upload error:', error);
+        alert('Failed to upload voice message: ' + error.message);
+    }
+}
+
+// Voice playback functions
+function toggleVoicePlayback(messageId, voiceUrl) {
+    const audio = document.getElementById(`voice-audio-${messageId}`);
+    const playBtn = document.querySelector(`[onclick*="${messageId}"]`);
+    const progressBar = document.getElementById(`voice-progress-${messageId}`);
+    const durationSpan = document.getElementById(`voice-duration-${messageId}`);
+    
+    if (!audio) return;
+    
+    if (audio.paused) {
+        // Stop all other playing audio
+        document.querySelectorAll('audio').forEach(a => {
+            if (a !== audio) {
+                a.pause();
+                a.currentTime = 0;
+            }
+        });
+        
+        // Reset all play buttons
+        document.querySelectorAll('.voice-play-btn').forEach(btn => {
+            btn.classList.remove('playing');
+            btn.innerHTML = '<i class="fas fa-play"></i>';
+        });
+        
+        audio.play();
+        playBtn.classList.add('playing');
+        playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+    } else {
+        audio.pause();
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+    
+    // Update duration on load
+    audio.addEventListener('loadedmetadata', () => {
+        durationSpan.textContent = formatAudioDuration(audio.duration);
+    });
+    
+    // Update progress during playback
+    audio.addEventListener('timeupdate', () => {
+        if (audio.duration) {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+    });
+    
+    // Reset when ended
+    audio.addEventListener('ended', () => {
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '<i class="fas fa-play"></i>';
+        progressBar.style.width = '0%';
+        audio.currentTime = 0;
+    });
+}
+
+function formatAudioDuration(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
 
 // Initialize the app
 console.log('5mChat client initialized');
