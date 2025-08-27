@@ -1016,7 +1016,19 @@ function showReplyIndicator(content) {
         replyIndicator = document.createElement('div');
         replyIndicator.id = 'replyIndicator';
         replyIndicator.className = 'reply-indicator';
-        elements.messageForm.insertBefore(replyIndicator, elements.messageInput);
+        
+        // Find the message input container to insert before it
+        const messageInputContainer = elements.messageForm.querySelector('.message-input-container') || 
+                                    elements.messageForm.querySelector('.input-group-horizontal') ||
+                                    elements.messageForm;
+        
+        if (messageInputContainer === elements.messageForm) {
+            // If no container found, prepend to the form
+            elements.messageForm.prepend(replyIndicator);
+        } else {
+            // Insert before the input container
+            elements.messageForm.insertBefore(replyIndicator, messageInputContainer);
+        }
     }
     
     const shortContent = content.length > 50 ? content.substring(0, 50) + '...' : content;
