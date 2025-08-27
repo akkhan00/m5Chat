@@ -196,14 +196,20 @@ body {
     height: calc(100vh - 120px);
 }
 
+/* Chat Header */
 .chat-header {
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .room-info h3 {

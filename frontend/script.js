@@ -81,6 +81,16 @@ function updateHistoryDisplay() {
 function selectFromHistory(username, roomName) {
     elements.username.value = username;
     elements.roomName.value = roomName;
+    
+    // Auto-focus the join button or trigger join if both fields are filled
+    if (username.trim() && roomName.trim()) {
+        const joinButton = elements.loginForm.querySelector('button[type="submit"]');
+        if (joinButton) {
+            joinButton.focus();
+            // Optional: Auto-join after selecting from history
+            // setTimeout(() => elements.loginForm.dispatchEvent(new Event('submit')), 100);
+        }
+    }
 }
 
 function formatHistoryTime(timestamp) {
@@ -99,7 +109,9 @@ function formatHistoryTime(timestamp) {
 }
 
 // Configuration - Update this URL when you deploy your backend
-const API_URL = 'https://skillful-laughter-production.up.railway.app';
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:8000' 
+    : 'https://skillful-laughter-production.up.railway.app';
 
 // DOM elements
 const elements = {
@@ -336,6 +348,41 @@ function addSystemMessage(text) {
     scrollToBottom();
 }
 
+function updateActiveUsers(users) {
+    let activeUsersElement = document.getElementById('activeUsers');
+    
+    if (!activeUsersElement) {
+        // Create active users element if it doesn't exist
+        const chatHeader = document.querySelector('.chat-header');
+        if (chatHeader) {
+            activeUsersElement = document.createElement('div');
+            activeUsersElement.id = 'activeUsers';
+            activeUsersElement.className = 'active-users';
+            chatHeader.appendChild(activeUsersElement);
+        }
+    }
+    
+    if (activeUsersElement && users && users.length > 0) {
+        const userCount = users.length;
+        const displayUsers = users.slice(0, 3); // Show max 3 usernames
+        const remainingCount = Math.max(0, userCount - 3);
+        
+        let usersText = displayUsers.join(', ');
+        if (remainingCount > 0) {
+            usersText += ` +${remainingCount} more`;
+        }
+        
+        activeUsersElement.innerHTML = `
+            <i class="fas fa-users"></i>
+            <span class="user-count">${userCount}</span>
+            <span class="user-names">${usersText}</span>
+        `;
+        activeUsersElement.style.display = 'flex';
+    } else if (activeUsersElement) {
+        activeUsersElement.style.display = 'none';
+    }
+}
+
 // Socket connection functions
 function connectToServer() {
     if (state.socket && state.socket.connected) {
@@ -389,7 +436,22 @@ function setupSocketEventListeners() {
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
         state.isConnected = false;
-        showError('Unable to connect to the chat server. Please check your internet connection and try again.');
+        
+        // Try to reconnect with fallback URL if initial connection fails
+        if (API_URL.includes('localhost') && !window.location.hostname.includes('localhost')) {
+            // Switch to production URL if localhost fails
+            setTimeout(() => {
+                state.socket.disconnect();
+                state.socket = io('https://skillful-laughter-production.up.railway.app', {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                    forceNew: true
+                });
+                setupSocketEventListeners();
+            }, 2000);
+        } else {
+            showError('Unable to connect to the chat server. Please check your internet connection and try again.');
+        }
     });
     
     // Chat events
@@ -410,6 +472,11 @@ function setupSocketEventListeners() {
             addMessage(message, isOwnMessage);
         });
         
+        // Update active users if provided
+        if (data.active_users) {
+            updateActiveUsers(data.active_users);
+        }
+        
         showScreen(elements.chatScreen);
     });
     
@@ -421,10 +488,16 @@ function setupSocketEventListeners() {
     
     socket.on('user_joined', (data) => {
         addSystemMessage(`${data.username} joined the chat`);
+        if (data.active_users) {
+            updateActiveUsers(data.active_users);
+        }
     });
     
     socket.on('user_left', (data) => {
         addSystemMessage(`${data.username} left the chat`);
+        if (data.active_users) {
+            updateActiveUsers(data.active_users);
+        }
     });
     
     socket.on('error', (error) => {
@@ -547,6 +620,18 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (roomName.length > 30) {
             alert('Room name must be 30 characters or less');
+            return;
+        }
+        
+        // Validate username (alphanumeric + underscores/hyphens only)
+        if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+            alert('Username can only contain letters, numbers, underscores, and hyphens');
+            return;
+        }
+        
+        // Validate room name (alphanumeric + underscores/hyphens only)
+        if (!/^[a-zA-Z0-9_-]+$/.test(roomName)) {
+            alert('Room name can only contain letters, numbers, underscores, and hyphens');
             return;
         }
         
