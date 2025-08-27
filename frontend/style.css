@@ -700,8 +700,8 @@ body {
     --bg-secondary: #2c2c2c;
     --bg-dark: #000000;
     --text-primary: #ffffff;
-    --text-secondary: #b0b0b0;
-    --text-muted: #888888;
+    --text-secondary: #e0e0e0;
+    --text-muted: #b0b0b0;
     --border-color: #404040;
     --shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -715,6 +715,32 @@ body {
 [data-theme="dark"] .reply-context {
     background: #404040;
     border-color: #555555;
+}
+
+[data-theme="dark"] .input-group input {
+    background: #333333;
+    color: #ffffff;
+    border-color: #555555;
+}
+
+[data-theme="dark"] .input-group label {
+    color: #e0e0e0;
+}
+
+[data-theme="dark"] .login-card h2 {
+    color: #ffffff;
+}
+
+[data-theme="dark"] .history-username {
+    color: #ffffff;
+}
+
+[data-theme="dark"] .history-room {
+    color: #4a90e2;
+}
+
+[data-theme="dark"] .history-item:hover .history-room {
+    color: rgba(255, 255, 255, 0.9);
 }
 
 [data-theme="cyberpunk"] {
@@ -1133,6 +1159,7 @@ body {
     animation: fadeIn 0.2s ease-out;
     min-width: 200px;
     white-space: nowrap;
+    margin-bottom: 5px;
 }
 
 @keyframes fadeIn {

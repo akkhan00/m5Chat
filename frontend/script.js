@@ -266,10 +266,11 @@ function createMessageElement(message, isOwnMessage = false) {
     // Reply section if this is a reply
     let replyHTML = '';
     if (message.reply_to && message.reply_content) {
+        const replyUsername = message.reply_username ? `@${message.reply_username}: ` : '';
         replyHTML = `
             <div class="reply-context">
                 <i class="fas fa-reply"></i>
-                <span class="reply-text">${escapeHtml(message.reply_content.substring(0, 50))}${message.reply_content.length > 50 ? '...' : ''}</span>
+                <span class="reply-text">${replyUsername}${escapeHtml(message.reply_content.substring(0, 50))}${message.reply_content.length > 50 ? '...' : ''}</span>
             </div>
         `;
     }
@@ -955,22 +956,34 @@ function createReactionsHTML(reactions, messageId) {
 }
 
 function showReactionPicker(messageId) {
+    // Remove any existing reaction picker first
+    const existingPicker = document.querySelector('.reaction-picker');
+    if (existingPicker) {
+        existingPicker.remove();
+    }
+
     const emojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥'];
     const picker = document.createElement('div');
     picker.className = 'reaction-picker';
     picker.innerHTML = emojis.map(emoji => 
-        `<button class="emoji-btn" onclick="toggleReaction('${messageId}', '${emoji}'); this.parentElement.remove();">${emoji}</button>`
+        `<button class="emoji-btn" onclick="toggleReaction('${messageId}', '${emoji}'); document.querySelector('.reaction-picker').remove();">${emoji}</button>`
     ).join('');
 
     // Position the picker near the message
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
     if (messageElement) {
-        messageElement.appendChild(picker);
+        const messageActions = messageElement.querySelector('.message-actions');
+        if (messageActions) {
+            messageActions.style.position = 'relative';
+            messageActions.appendChild(picker);
+        } else {
+            messageElement.appendChild(picker);
+        }
 
         // Remove picker when clicking outside
         setTimeout(() => {
             document.addEventListener('click', function removePicker(e) {
-                if (!picker.contains(e.target)) {
+                if (!picker.contains(e.target) && !e.target.closest('.reaction-btn')) {
                     picker.remove();
                     document.removeEventListener('click', removePicker);
                 }
