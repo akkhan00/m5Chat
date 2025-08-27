@@ -871,8 +871,130 @@ function formatAudioDuration(seconds) {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
+// Theme Management
+const THEME_KEY = 'fivemc_selected_theme';
+
+function initializeTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'default';
+    applyTheme(savedTheme);
+    updateThemeSelector(savedTheme);
+}
+
+function applyTheme(themeName) {
+    document.documentElement.setAttribute('data-theme', themeName);
+    localStorage.setItem(THEME_KEY, themeName);
+}
+
+function updateThemeSelector(activeTheme) {
+    const themeOptions = document.querySelectorAll('.theme-option');
+    themeOptions.forEach(option => {
+        const theme = option.getAttribute('data-theme');
+        option.classList.toggle('active', theme === activeTheme);
+    });
+}
+
+// Floating Elements Management
+function initializeFloatingElements() {
+    // Refresh Button
+    const refreshButton = document.getElementById('refreshButton');
+    const themeToggle = document.getElementById('themeToggle');
+    const themeOptions = document.getElementById('themeOptions');
+    
+    // Refresh button functionality
+    refreshButton.addEventListener('click', () => {
+        // Add loading animation
+        refreshButton.style.transform = 'scale(0.9) rotate(360deg)';
+        refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        // Reload the page after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    });
+    
+    // Theme selector functionality
+    let themeOptionsVisible = false;
+    
+    themeToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        themeOptionsVisible = !themeOptionsVisible;
+        themeOptions.classList.toggle('show', themeOptionsVisible);
+    });
+    
+    // Close theme options when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.floating-theme-selector')) {
+            themeOptionsVisible = false;
+            themeOptions.classList.remove('show');
+        }
+    });
+    
+    // Theme option selection
+    document.querySelectorAll('.theme-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            const selectedTheme = option.getAttribute('data-theme');
+            applyTheme(selectedTheme);
+            updateThemeSelector(selectedTheme);
+            
+            // Close theme options
+            themeOptionsVisible = false;
+            themeOptions.classList.remove('show');
+            
+            // Add feedback animation
+            option.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                option.style.transform = 'scale(1)';
+            }, 150);
+        });
+    });
+    
+    // Prevent scroll reload behavior
+    let isScrolling = false;
+    let scrollTimeout;
+    
+    window.addEventListener('scroll', (e) => {
+        // Clear the timeout if it's already set
+        clearTimeout(scrollTimeout);
+        
+        // Set isScrolling to true
+        isScrolling = true;
+        
+        // Reset isScrolling after scrolling has stopped
+        scrollTimeout = setTimeout(() => {
+            isScrolling = false;
+        }, 100);
+        
+        // Prevent any default scroll behaviors that might trigger reload
+        if (window.scrollY < -50 || (window.scrollY + window.innerHeight) > document.body.scrollHeight + 50) {
+            e.preventDefault();
+            window.scrollTo(0, Math.max(0, Math.min(window.scrollY, document.body.scrollHeight - window.innerHeight)));
+        }
+    });
+    
+    // Prevent pull-to-refresh on mobile
+    document.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const touchY = e.touches[0].clientY;
+        if (touchY <= 10 && window.scrollY === 0) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    document.addEventListener('touchmove', (e) => {
+        if (window.scrollY === 0 && e.touches[0].clientY > e.touches[0].clientY) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+}
+
 // Initialize the app
 console.log('5mChat client initialized');
+
+// Initialize theme and floating elements when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
+    initializeFloatingElements();
+});
 
 // Handle page refresh/close
 window.addEventListener('beforeunload', () => {
