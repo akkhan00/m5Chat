@@ -523,8 +523,8 @@ body {
     color: var(--warning-color);
 }
 
-/* Floating Refresh Button */
-.floating-refresh-btn {
+/* Combined Floating Action Button */
+.floating-action-btn {
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -534,7 +534,7 @@ body {
     color: white;
     border: none;
     border-radius: 50%;
-    cursor: pointer;
+    cursor: move;
     box-shadow: var(--shadow-hover);
     display: flex;
     align-items: center;
@@ -543,66 +543,85 @@ body {
     transition: var(--transition);
     z-index: 1000;
     user-select: none;
+    touch-action: none;
 }
 
-.floating-refresh-btn:hover {
-    transform: scale(1.1) rotate(180deg);
-    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
-}
-
-.floating-refresh-btn:active {
-    transform: scale(0.95);
-}
-
-/* Theme Selector */
-.floating-theme-selector {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    z-index: 1000;
-}
-
-.theme-toggle-btn {
-    width: 56px;
-    height: 56px;
-    background: var(--primary-gradient);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: var(--shadow-hover);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    transition: var(--transition);
-    user-select: none;
-}
-
-.theme-toggle-btn:hover {
+.floating-action-btn:hover {
     transform: scale(1.1);
     box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
 }
 
-.theme-options {
+.floating-action-btn:active {
+    transform: scale(0.95);
+}
+
+.floating-action-btn.dragging {
+    transition: none;
+    z-index: 1001;
+}
+
+.action-options {
     position: absolute;
     bottom: 70px;
-    left: 0;
+    right: 0;
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow-hover);
     padding: 1rem;
-    min-width: 200px;
+    min-width: 220px;
+    max-height: 400px;
+    overflow-y: auto;
     opacity: 0;
     visibility: hidden;
     transform: translateY(10px);
     transition: all 0.3s ease;
 }
 
-.theme-options.show {
+.action-options.show {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
+}
+
+.action-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: left;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.action-option:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.action-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.5rem 0;
+}
+
+.theme-section {
+    margin-top: 0.5rem;
+}
+
+.section-title {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .theme-option {
@@ -1203,7 +1222,7 @@ body {
     }
 
     /* Mobile adjustments for floating elements */
-    .floating-refresh-btn {
+    .floating-action-btn {
         bottom: 80px;
         right: 15px;
         width: 48px;
@@ -1211,19 +1230,15 @@ body {
         font-size: 1rem;
     }
 
-    .floating-theme-selector {
-        bottom: 80px;
-        left: 15px;
-    }
-
-    .theme-toggle-btn {
-        width: 48px;
-        height: 48px;
-        font-size: 1rem;
-    }
-
-    .theme-options {
+    .action-options {
         bottom: 60px;
-        min-width: 180px;
+        min-width: 200px;
+        right: 0;
+        max-height: 300px;
+    }
+
+    .action-option {
+        padding: 0.6rem;
+        font-size: 0.85rem;
     }
 }

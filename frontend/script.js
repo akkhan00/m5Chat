@@ -895,50 +895,127 @@ function updateThemeSelector(activeTheme) {
 
 // Floating Elements Management
 function initializeFloatingElements() {
-    // Refresh Button
-    const refreshButton = document.getElementById('refreshButton');
-    const themeToggle = document.getElementById('themeToggle');
-    const themeOptions = document.getElementById('themeOptions');
+    const floatingBtn = document.getElementById('floatingActionButton');
+    const actionOptions = document.getElementById('actionOptions');
+    const refreshOption = document.getElementById('refreshOption');
     
-    // Refresh button functionality
-    refreshButton.addEventListener('click', () => {
-        // Add loading animation
-        refreshButton.style.transform = 'scale(0.9) rotate(360deg)';
-        refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let elementStart = { x: 0, y: 0 };
+    let actionOptionsVisible = false;
+    
+    // Make the floating button draggable
+    function initializeDragging() {
+        // Mouse events
+        floatingBtn.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
         
-        // Reload the page after a short delay
+        // Touch events
+        floatingBtn.addEventListener('touchstart', startDrag, { passive: false });
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('touchend', endDrag);
+        
+        function startDrag(e) {
+            e.preventDefault();
+            isDragging = false; // Will be set to true if actually dragging
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            dragStart.x = clientX;
+            dragStart.y = clientY;
+            
+            const rect = floatingBtn.getBoundingClientRect();
+            elementStart.x = rect.left;
+            elementStart.y = rect.top;
+        }
+        
+        function drag(e) {
+            if (dragStart.x === 0 && dragStart.y === 0) return;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            const deltaX = clientX - dragStart.x;
+            const deltaY = clientY - dragStart.y;
+            
+            // Only start dragging if moved more than 5px
+            if (!isDragging && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+                isDragging = true;
+                floatingBtn.classList.add('dragging');
+                actionOptions.classList.remove('show');
+                actionOptionsVisible = false;
+            }
+            
+            if (isDragging) {
+                e.preventDefault();
+                
+                const newX = elementStart.x + deltaX;
+                const newY = elementStart.y + deltaY;
+                
+                // Keep within viewport bounds
+                const maxX = window.innerWidth - floatingBtn.offsetWidth;
+                const maxY = window.innerHeight - floatingBtn.offsetHeight;
+                
+                const clampedX = Math.max(0, Math.min(newX, maxX));
+                const clampedY = Math.max(0, Math.min(newY, maxY));
+                
+                floatingBtn.style.left = clampedX + 'px';
+                floatingBtn.style.top = clampedY + 'px';
+                floatingBtn.style.right = 'auto';
+                floatingBtn.style.bottom = 'auto';
+            }
+        }
+        
+        function endDrag(e) {
+            if (isDragging) {
+                floatingBtn.classList.remove('dragging');
+            } else {
+                // This was a click, not a drag
+                toggleActionOptions(e);
+            }
+            
+            isDragging = false;
+            dragStart.x = 0;
+            dragStart.y = 0;
+        }
+    }
+    
+    function toggleActionOptions(e) {
+        e.stopPropagation();
+        actionOptionsVisible = !actionOptionsVisible;
+        actionOptions.classList.toggle('show', actionOptionsVisible);
+    }
+    
+    // Refresh functionality
+    refreshOption.addEventListener('click', () => {
+        refreshOption.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Refreshing...</span>';
+        
         setTimeout(() => {
             window.location.reload();
         }, 500);
     });
     
-    // Theme selector functionality
-    let themeOptionsVisible = false;
-    
-    themeToggle.addEventListener('click', (e) => {
-        e.stopPropagation();
-        themeOptionsVisible = !themeOptionsVisible;
-        themeOptions.classList.toggle('show', themeOptionsVisible);
-    });
-    
-    // Close theme options when clicking outside
+    // Close options when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.floating-theme-selector')) {
-            themeOptionsVisible = false;
-            themeOptions.classList.remove('show');
+        if (!e.target.closest('#floatingActionButton')) {
+            actionOptionsVisible = false;
+            actionOptions.classList.remove('show');
         }
     });
     
     // Theme option selection
     document.querySelectorAll('.theme-option').forEach(option => {
         option.addEventListener('click', (e) => {
+            e.stopPropagation();
             const selectedTheme = option.getAttribute('data-theme');
             applyTheme(selectedTheme);
             updateThemeSelector(selectedTheme);
             
-            // Close theme options
-            themeOptionsVisible = false;
-            themeOptions.classList.remove('show');
+            // Close options
+            actionOptionsVisible = false;
+            actionOptions.classList.remove('show');
             
             // Add feedback animation
             option.style.transform = 'scale(0.95)';
@@ -947,6 +1024,9 @@ function initializeFloatingElements() {
             }, 150);
         });
     });
+    
+    // Initialize dragging
+    initializeDragging();
     
     // Prevent scroll reload behavior
     let isScrolling = false;
