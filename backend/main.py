@@ -31,6 +31,9 @@ class Message(BaseModel):
     message_type: str = "text"  # "text", "image", or "voice"
     image_url: Optional[str] = None
     voice_url: Optional[str] = None
+    reactions: Optional[dict] = {}  # {"emoji": ["username1", "username2"]}
+    reply_to: Optional[str] = None  # Message ID being replied to
+    reply_content: Optional[str] = None  # Original message content for context
 
 
 class Room(BaseModel):
@@ -45,6 +48,14 @@ class MessageCreate(BaseModel):
     message_type: str = "text"  # "text", "image", or "voice"
     image_url: Optional[str] = None
     voice_url: Optional[str] = None
+    reply_to: Optional[str] = None
+
+
+class ReactionCreate(BaseModel):
+    message_id: str
+    username: str
+    emoji: str
+    room: str
 
 
 # Initialize Socket.IO server with proper ASGI configuration
@@ -120,7 +131,10 @@ def init_db():
             message_type TEXT DEFAULT "text",
             image_url TEXT,
             voice_url TEXT,
-            file_path TEXT
+            file_path TEXT,
+            reactions TEXT DEFAULT "{}",
+            reply_to TEXT,
+            reply_content TEXT
         )
     ''')
 
@@ -136,6 +150,12 @@ def init_db():
         cursor.execute('ALTER TABLE messages ADD COLUMN file_path TEXT')
     if 'voice_url' not in columns:
         cursor.execute('ALTER TABLE messages ADD COLUMN voice_url TEXT')
+    if 'reactions' not in columns:
+        cursor.execute('ALTER TABLE messages ADD COLUMN reactions TEXT DEFAULT "{}"')
+    if 'reply_to' not in columns:
+        cursor.execute('ALTER TABLE messages ADD COLUMN reply_to TEXT')
+    if 'reply_content' not in columns:
+        cursor.execute('ALTER TABLE messages ADD COLUMN reply_content TEXT')
 
     # Create rooms table
     cursor.execute('''
@@ -173,13 +193,21 @@ def create_message(message_data: MessageCreate, file_path: Optional[str] = None)
     message_id = str(uuid.uuid4())
     timestamp = datetime.now().isoformat()
     expires_at = datetime.now() + timedelta(minutes=5)
+    
+    # Get reply content if this is a reply
+    reply_content = None
+    if message_data.reply_to:
+        cursor.execute('SELECT content FROM messages WHERE id = ?', (message_data.reply_to,))
+        reply_row = cursor.fetchone()
+        if reply_row:
+            reply_content = reply_row['content']
 
     cursor.execute('''
-        INSERT INTO messages (id, username, content, room, timestamp, expires_at, message_type, image_url, voice_url, file_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (id, username, content, room, timestamp, expires_at, message_type, image_url, voice_url, file_path, reactions, reply_to, reply_content)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (message_id, message_data.username, message_data.content, 
           message_data.room, timestamp, expires_at, message_data.message_type, 
-          message_data.image_url, message_data.voice_url, file_path))
+          message_data.image_url, message_data.voice_url, file_path, '{}', message_data.reply_to, reply_content))
 
     conn.commit()
     conn.close()
@@ -192,7 +220,10 @@ def create_message(message_data: MessageCreate, file_path: Optional[str] = None)
         timestamp=timestamp,
         message_type=message_data.message_type,
         image_url=message_data.image_url,
-        voice_url=message_data.voice_url
+        voice_url=message_data.voice_url,
+        reactions={},
+        reply_to=message_data.reply_to,
+        reply_content=reply_content
     )
 
 
@@ -201,7 +232,7 @@ def get_room_messages(room: str) -> List[Message]:
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT id, username, content, room, timestamp, message_type, image_url, voice_url
+        SELECT id, username, content, room, timestamp, message_type, image_url, voice_url, reactions, reply_to, reply_content
         FROM messages
         WHERE room = ? AND expires_at > ?
         ORDER BY timestamp ASC
@@ -209,6 +240,12 @@ def get_room_messages(room: str) -> List[Message]:
 
     messages = []
     for row in cursor.fetchall():
+        reactions = {}
+        try:
+            reactions = json.loads(row['reactions'] or '{}')
+        except (json.JSONDecodeError, TypeError):
+            reactions = {}
+            
         messages.append(Message(
             id=row['id'],
             username=row['username'],
@@ -217,7 +254,10 @@ def get_room_messages(room: str) -> List[Message]:
             timestamp=row['timestamp'],
             message_type=row['message_type'] or "text",
             image_url=row['image_url'],
-            voice_url=row['voice_url']
+            voice_url=row['voice_url'],
+            reactions=reactions,
+            reply_to=row['reply_to'],
+            reply_content=row['reply_content']
         ))
 
     conn.close()
@@ -296,6 +336,83 @@ def get_room_active_users(room: str) -> List[str]:
     users = [row['username'] for row in cursor.fetchall()]
     conn.close()
     return users
+
+
+def add_reaction(message_id: str, username: str, emoji: str) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get current reactions
+        cursor.execute('SELECT reactions FROM messages WHERE id = ?', (message_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+            
+        reactions = {}
+        try:
+            reactions = json.loads(row['reactions'] or '{}')
+        except (json.JSONDecodeError, TypeError):
+            reactions = {}
+        
+        # Add or remove reaction
+        if emoji not in reactions:
+            reactions[emoji] = []
+        
+        if username in reactions[emoji]:
+            reactions[emoji].remove(username)
+            if not reactions[emoji]:  # Remove empty emoji lists
+                del reactions[emoji]
+        else:
+            reactions[emoji].append(username)
+        
+        # Update database
+        cursor.execute('UPDATE messages SET reactions = ? WHERE id = ?', 
+                      (json.dumps(reactions), message_id))
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        print(f"Error managing reaction: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_message_with_reactions(message_id: str) -> Optional[Message]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT id, username, content, room, timestamp, message_type, image_url, voice_url, reactions, reply_to, reply_content
+        FROM messages WHERE id = ?
+    ''', (message_id,))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+    
+    reactions = {}
+    try:
+        reactions = json.loads(row['reactions'] or '{}')
+    except (json.JSONDecodeError, TypeError):
+        reactions = {}
+    
+    return Message(
+        id=row['id'],
+        username=row['username'],
+        content=row['content'],
+        room=row['room'],
+        timestamp=row['timestamp'],
+        message_type=row['message_type'] or "text",
+        image_url=row['image_url'],
+        voice_url=row['voice_url'],
+        reactions=reactions,
+        reply_to=row['reply_to'],
+        reply_content=row['reply_content']
+    )
 
 
 async def cleanup_expired_messages():
@@ -439,6 +556,31 @@ async def send_message(sid, data):
 
     except Exception as e:
         await sio.emit('error', {'message': f'Error sending message: {str(e)}'}, room=sid)
+
+
+@sio.event
+async def toggle_reaction(sid, data):
+    try:
+        reaction_data = ReactionCreate(**data)
+        
+        # Add or remove reaction
+        success = add_reaction(reaction_data.message_id, reaction_data.username, reaction_data.emoji)
+        
+        if success:
+            # Get updated message with reactions
+            updated_message = get_message_with_reactions(reaction_data.message_id)
+            
+            if updated_message:
+                # Emit to all clients in the room
+                await sio.emit('reaction_updated', {
+                    'message_id': reaction_data.message_id,
+                    'reactions': updated_message.reactions
+                }, room=reaction_data.room)
+        else:
+            await sio.emit('error', {'message': 'Failed to update reaction'}, room=sid)
+            
+    except Exception as e:
+        await sio.emit('error', {'message': f'Error handling reaction: {str(e)}'}, room=sid)
 
 
 # REST API endpoints

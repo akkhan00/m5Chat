@@ -998,6 +998,180 @@ body {
     min-width: 35px;
 }
 
+/* Reply and Reaction Styles */
+.reply-context {
+    background: rgba(var(--primary-color), 0.1);
+    border-left: 3px solid var(--primary-color);
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0.8;
+}
+
+.reply-context i {
+    color: var(--primary-color);
+}
+
+.reply-text {
+    font-style: italic;
+}
+
+.message-actions {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: var(--transition);
+}
+
+.message:hover .message-actions {
+    opacity: 1;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.action-btn:hover {
+    background: var(--border-color);
+    color: var(--text-primary);
+}
+
+.message-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.reaction-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.reaction-item:hover {
+    background: var(--border-color);
+}
+
+.reaction-item.own-reaction {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.reaction-picker {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 0.25rem;
+    z-index: 100;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.emoji-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    padding: 0.25rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.emoji-btn:hover {
+    background: var(--border-color);
+    transform: scale(1.2);
+}
+
+.reply-indicator {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.reply-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.reply-content i {
+    color: var(--primary-color);
+}
+
+.cancel-reply-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: var(--transition);
+}
+
+.cancel-reply-btn:hover {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* Adjust message header for actions */
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    position: relative;
+}
+
 /* Modal Styles */
 .modal {
     display: none;

@@ -6,7 +6,8 @@ const state = {
     isConnected: false,
     mediaRecorder: null,
     audioChunks: [],
-    isRecording: false
+    isRecording: false,
+    replyingTo: null // Store message being replied to
 };
 
 // Login history management
@@ -262,11 +263,31 @@ function createMessageElement(message, isOwnMessage = false) {
     
     let contentHTML = '';
     
+    // Reply section if this is a reply
+    let replyHTML = '';
+    if (message.reply_to && message.reply_content) {
+        replyHTML = `
+            <div class="reply-context">
+                <i class="fas fa-reply"></i>
+                <span class="reply-text">${escapeHtml(message.reply_content.substring(0, 50))}${message.reply_content.length > 50 ? '...' : ''}</span>
+            </div>
+        `;
+    }
+    
     if (message.message_type === 'image' && message.image_url) {
         contentHTML = `
+            ${replyHTML}
             <div class="message-header">
                 <span class="message-username">${escapeHtml(message.username)}</span>
                 <span class="message-time">${formatTime(message.timestamp)}</span>
+                <div class="message-actions">
+                    <button class="action-btn reply-btn" onclick="setReplyTo('${message.id}', '${escapeHtml(message.content)}')">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                    <button class="action-btn reaction-btn" onclick="showReactionPicker('${message.id}')">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                </div>
             </div>
             <div class="message-content">
                 <div class="image-message-filename">${escapeHtml(message.content)}</div>
@@ -275,9 +296,18 @@ function createMessageElement(message, isOwnMessage = false) {
         `;
     } else if (message.message_type === 'voice' && message.voice_url) {
         contentHTML = `
+            ${replyHTML}
             <div class="message-header">
                 <span class="message-username">${escapeHtml(message.username)}</span>
                 <span class="message-time">${formatTime(message.timestamp)}</span>
+                <div class="message-actions">
+                    <button class="action-btn reply-btn" onclick="setReplyTo('${message.id}', 'Voice Message')">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                    <button class="action-btn reaction-btn" onclick="showReactionPicker('${message.id}')">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                </div>
             </div>
             <div class="message-content">
                 <div class="voice-message">
@@ -298,13 +328,26 @@ function createMessageElement(message, isOwnMessage = false) {
         `;
     } else {
         contentHTML = `
+            ${replyHTML}
             <div class="message-header">
                 <span class="message-username">${escapeHtml(message.username)}</span>
                 <span class="message-time">${formatTime(message.timestamp)}</span>
+                <div class="message-actions">
+                    <button class="action-btn reply-btn" onclick="setReplyTo('${message.id}', '${escapeHtml(message.content)}')">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                    <button class="action-btn reaction-btn" onclick="showReactionPicker('${message.id}')">
+                        <i class="fas fa-smile"></i>
+                    </button>
+                </div>
             </div>
             <div class="message-content">${escapeHtml(message.content)}</div>
         `;
     }
+    
+    // Add reactions section
+    const reactionsHTML = createReactionsHTML(message.reactions || {}, message.id);
+    contentHTML += reactionsHTML;
     
     messageDiv.innerHTML = contentHTML;
     return messageDiv;
@@ -506,6 +549,11 @@ function setupSocketEventListeners() {
         console.error('Socket error:', error);
         alert('Error: ' + error.message);
     });
+    
+    socket.on('reaction_updated', (data) => {
+        console.log('Reaction updated:', data);
+        updateMessageReactions(data.message_id, data.reactions);
+    });
 }
 
 function joinRoom() {
@@ -532,11 +580,21 @@ function sendMessage(content) {
         return;
     }
     
-    state.socket.emit('send_message', {
+    const messageData = {
         username: state.currentUser,
         content: content.trim(),
         room: state.currentRoom
-    });
+    };
+    
+    // Add reply information if replying
+    if (state.replyingTo) {
+        messageData.reply_to = state.replyingTo.id;
+    }
+    
+    state.socket.emit('send_message', messageData);
+    
+    // Clear reply state
+    clearReply();
 }
 
 function leaveRoom() {
@@ -869,6 +927,117 @@ function formatAudioDuration(seconds) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Reaction functions
+function createReactionsHTML(reactions, messageId) {
+    if (!reactions || Object.keys(reactions).length === 0) {
+        return '<div class="message-reactions" id="reactions-' + messageId + '"></div>';
+    }
+    
+    let reactionsHTML = '<div class="message-reactions" id="reactions-' + messageId + '">';
+    
+    for (const [emoji, users] of Object.entries(reactions)) {
+        if (users && users.length > 0) {
+            const isOwnReaction = users.includes(state.currentUser);
+            reactionsHTML += `
+                <button class="reaction-item ${isOwnReaction ? 'own-reaction' : ''}" 
+                        onclick="toggleReaction('${messageId}', '${emoji}')"
+                        title="${users.join(', ')}">
+                    ${emoji} ${users.length}
+                </button>
+            `;
+        }
+    }
+    
+    reactionsHTML += '</div>';
+    return reactionsHTML;
+}
+
+function showReactionPicker(messageId) {
+    const emojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥'];
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+    picker.innerHTML = emojis.map(emoji => 
+        `<button class="emoji-btn" onclick="toggleReaction('${messageId}', '${emoji}'); this.parentElement.remove();">${emoji}</button>`
+    ).join('');
+    
+    // Position the picker near the message
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+        messageElement.appendChild(picker);
+        
+        // Remove picker when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function removePicker(e) {
+                if (!picker.contains(e.target)) {
+                    picker.remove();
+                    document.removeEventListener('click', removePicker);
+                }
+            });
+        }, 100);
+    }
+}
+
+function toggleReaction(messageId, emoji) {
+    if (!state.socket || !state.socket.connected) {
+        alert('Not connected to server.');
+        return;
+    }
+    
+    state.socket.emit('toggle_reaction', {
+        message_id: messageId,
+        username: state.currentUser,
+        emoji: emoji,
+        room: state.currentRoom
+    });
+}
+
+function updateMessageReactions(messageId, reactions) {
+    const reactionsContainer = document.getElementById(`reactions-${messageId}`);
+    if (reactionsContainer) {
+        const reactionsHTML = createReactionsHTML(reactions, messageId);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = reactionsHTML;
+        reactionsContainer.parentNode.replaceChild(tempDiv.firstChild, reactionsContainer);
+    }
+}
+
+// Reply functions
+function setReplyTo(messageId, content) {
+    state.replyingTo = { id: messageId, content: content };
+    showReplyIndicator(content);
+    elements.messageInput.focus();
+}
+
+function showReplyIndicator(content) {
+    let replyIndicator = document.getElementById('replyIndicator');
+    if (!replyIndicator) {
+        replyIndicator = document.createElement('div');
+        replyIndicator.id = 'replyIndicator';
+        replyIndicator.className = 'reply-indicator';
+        elements.messageForm.insertBefore(replyIndicator, elements.messageInput);
+    }
+    
+    const shortContent = content.length > 50 ? content.substring(0, 50) + '...' : content;
+    replyIndicator.innerHTML = `
+        <div class="reply-content">
+            <i class="fas fa-reply"></i>
+            <span>Replying to: ${escapeHtml(shortContent)}</span>
+        </div>
+        <button type="button" class="cancel-reply-btn" onclick="clearReply()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    replyIndicator.style.display = 'flex';
+}
+
+function clearReply() {
+    state.replyingTo = null;
+    const replyIndicator = document.getElementById('replyIndicator');
+    if (replyIndicator) {
+        replyIndicator.style.display = 'none';
+    }
 }
 
 // Theme Management
