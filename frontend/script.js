@@ -9,6 +9,95 @@ const state = {
     isRecording: false
 };
 
+// Login history management
+const LOGIN_HISTORY_KEY = 'fivemc_login_history';
+const MAX_HISTORY_ITEMS = 10;
+
+function saveLoginHistory(username, roomName) {
+    let history = getLoginHistory();
+    
+    // Create new entry
+    const newEntry = {
+        username,
+        roomName,
+        timestamp: Date.now()
+    };
+    
+    // Remove duplicate entries (same username + room combination)
+    history = history.filter(item => 
+        !(item.username === username && item.roomName === roomName)
+    );
+    
+    // Add new entry at the beginning
+    history.unshift(newEntry);
+    
+    // Keep only the latest entries
+    history = history.slice(0, MAX_HISTORY_ITEMS);
+    
+    localStorage.setItem(LOGIN_HISTORY_KEY, JSON.stringify(history));
+    updateHistoryDisplay();
+}
+
+function getLoginHistory() {
+    try {
+        const history = localStorage.getItem(LOGIN_HISTORY_KEY);
+        return history ? JSON.parse(history) : [];
+    } catch (error) {
+        console.error('Error loading login history:', error);
+        return [];
+    }
+}
+
+function clearLoginHistory() {
+    localStorage.removeItem(LOGIN_HISTORY_KEY);
+    updateHistoryDisplay();
+}
+
+function updateHistoryDisplay() {
+    const historyContainer = document.getElementById('loginHistory');
+    const history = getLoginHistory();
+    
+    if (!historyContainer) return;
+    
+    if (history.length === 0) {
+        historyContainer.style.display = 'none';
+        return;
+    }
+    
+    historyContainer.style.display = 'block';
+    const historyList = historyContainer.querySelector('.history-list');
+    
+    historyList.innerHTML = history.map(item => `
+        <div class="history-item" onclick="selectFromHistory('${escapeHtml(item.username)}', '${escapeHtml(item.roomName)}')">
+            <div class="history-info">
+                <span class="history-username">${escapeHtml(item.username)}</span>
+                <span class="history-room">#${escapeHtml(item.roomName)}</span>
+            </div>
+            <div class="history-time">${formatHistoryTime(item.timestamp)}</div>
+        </div>
+    `).join('');
+}
+
+function selectFromHistory(username, roomName) {
+    elements.username.value = username;
+    elements.roomName.value = roomName;
+}
+
+function formatHistoryTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInHours = (now - date) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) {
+        return 'Just now';
+    } else if (diffInHours < 24) {
+        return `${Math.floor(diffInHours)}h ago`;
+    } else {
+        const diffInDays = Math.floor(diffInHours / 24);
+        return `${diffInDays}d ago`;
+    }
+}
+
 // Configuration - Update this URL when you deploy your backend
 const API_URL = 'https://skillful-laughter-production.up.railway.app';
 
@@ -405,6 +494,9 @@ function leaveRoom() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize login history display
+    updateHistoryDisplay();
+    
     // About modal functionality
     const aboutBtn = document.getElementById('aboutBtn');
     const aboutModal = document.getElementById('aboutModal');
@@ -460,6 +552,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         state.currentUser = username;
         state.currentRoom = roomName;
+        
+        // Save to history
+        saveLoginHistory(username, roomName);
         
         connectToServer();
     });
