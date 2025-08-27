@@ -405,6 +405,37 @@ function leaveRoom() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // About modal functionality
+    const aboutBtn = document.getElementById('aboutBtn');
+    const aboutModal = document.getElementById('aboutModal');
+    const closeAbout = document.getElementById('closeAbout');
+    
+    aboutBtn.addEventListener('click', () => {
+        aboutModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    });
+    
+    closeAbout.addEventListener('click', () => {
+        aboutModal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    });
+    
+    // Close modal when clicking outside
+    aboutModal.addEventListener('click', (e) => {
+        if (e.target === aboutModal) {
+            aboutModal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && aboutModal.style.display === 'block') {
+            aboutModal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+    });
+    
     // Login form
     elements.loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
