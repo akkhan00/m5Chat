@@ -385,8 +385,10 @@ function updateActiveUsers(users) {
 
 // Socket connection functions
 function connectToServer() {
-    if (state.socket && state.socket.connected) {
-        return;
+    // Clean up any existing socket connection
+    if (state.socket) {
+        state.socket.disconnect();
+        state.socket = null;
     }
     
     showScreen(elements.loadingScreen);
@@ -543,11 +545,16 @@ function leaveRoom() {
             username: state.currentUser,
             room: state.currentRoom
         });
+        
+        // Disconnect the socket to ensure clean state
+        state.socket.disconnect();
+        state.socket = null;
     }
     
-    // Reset state
+    // Reset state completely
     state.currentUser = null;
     state.currentRoom = null;
+    state.isConnected = false;
     
     // Clear messages
     elements.messagesContainer.innerHTML = `
@@ -557,10 +564,11 @@ function leaveRoom() {
         </div>
     `;
     
-    // Reset forms
-    elements.username.value = '';
-    elements.roomName.value = '';
+    // Reset forms but keep the values for convenience
     elements.messageInput.value = '';
+    
+    // Update connection status
+    updateConnectionStatus('disconnected');
     
     showScreen(elements.loginScreen);
 }
@@ -661,6 +669,16 @@ document.addEventListener('DOMContentLoaded', () => {
             leaveRoom();
         }
     });
+    
+    // Join new room button
+    const joinNewRoomBtn = document.getElementById('joinNewRoomBtn');
+    if (joinNewRoomBtn) {
+        joinNewRoomBtn.addEventListener('click', () => {
+            if (confirm('Leave current room and join a new one?')) {
+                leaveRoom();
+            }
+        });
+    }
     
     // Retry connection button
     elements.retryBtn.addEventListener('click', () => {
